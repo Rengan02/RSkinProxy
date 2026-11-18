@@ -5,7 +5,7 @@ A lightweight Express service that serves [SkinsRestorer](https://github.com/Ski
 ## Installation
 
 ```bash
-git clone <repo-url>
+git clone https://github.com/Rengan02/RSkinProxy.git
 cd RSkinProxy
 npm install
 ```
