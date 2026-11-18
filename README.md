@@ -14,7 +14,7 @@ Create a `.env` file in the root directory:
 
 ```env
 PORT=3000
-SKINRESTORER_PATH=/path/to/skinrestorer
+SKINRESTORER_PATH=/path/to/skinrestorer_config
 ```
 
 ## Usage
