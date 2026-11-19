@@ -22,7 +22,6 @@ type HistoryItem = {
     skinIdentifier: SkinIdentifier;
 }
 
-
 export type PlayerSkin = {
     value: string;
     signature: number;
@@ -40,3 +39,17 @@ export type DecodedSkinValue = {
         }
     }
 }
+
+export type PlayerProperty = {
+    name: string;
+    value: string;
+    signature?: string;
+};
+
+export type MinecraftProfile = {
+    id: string;
+    name: string;
+    legacy?: boolean;
+    properties: PlayerProperty[];
+    profileActions?: unknown[];
+};

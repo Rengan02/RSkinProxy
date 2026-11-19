@@ -2,6 +2,8 @@ import express from 'express';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import sharp from 'sharp';
+import crypto from 'crypto';
+import { DecodedSkinValue, MinecraftProfile } from './types';
 
 const app = express();
 app.use(express.json());
@@ -14,7 +16,7 @@ if (!SKINRESTORER_PATH) {
 	process.exit(1);
 }
 
-function formatUuid(uuid: string): string {
+function formatUUID(uuid: string): string {
 	const clean = uuid.replace(/-/g, '');
 	if (clean.length !== 32) return uuid;
 	return `${clean.substring(0, 8)}-${clean.substring(8, 12)}-${clean.substring(12, 16)}-${clean.substring(16, 20)}-${clean.substring(20, 32)}`;
@@ -23,7 +25,7 @@ function formatUuid(uuid: string): string {
 app.get('/skin/:uuid', async (req, res) => {
 	try {
 		const rawUuid = req.params.uuid;
-		const uuid = formatUuid(rawUuid);
+		const uuid = formatUUID(rawUuid);
 		const skinUrl = await getPlayerImage(uuid);
 		
 		if (!skinUrl) {
@@ -46,7 +48,7 @@ app.get('/skin/:uuid', async (req, res) => {
 app.get('/head/:uuid', async (req, res) => {
 	try {
 		const rawUuid = req.params.uuid;
-		const uuid = formatUuid(rawUuid);
+		const uuid = formatUUID(rawUuid);
 		const skinUrl = await getPlayerImage(uuid);
 		
 		if (!skinUrl) {
@@ -100,13 +102,14 @@ async function getPlayerImage(uuid: string): Promise<string | undefined> {
 		const fileContent = await fs.readFile(filePath, 'utf8');
 		const data = JSON.parse(fileContent);
 
-		return await getSkinUrl(data.skinIdentifier);
+		return await getSkinURL(data.skinIdentifier);
 	} catch (err) {
+		console.error(err)
 		return undefined;
 	}
 }
 
-async function getSkinUrl(skinIdentifier: any): Promise<string> {
+async function getSkinURL(skinIdentifier: any): Promise<string> {
 	if (!skinIdentifier) throw new Error("skinIdentifier is undefined!");
 
 	let filetype = "";
@@ -122,12 +125,57 @@ async function getSkinUrl(skinIdentifier: any): Promise<string> {
 	const fileContent = await fs.readFile(filePath, 'utf8');
 	const data = JSON.parse(fileContent);
 
-	const decodedBuffer = Buffer.from(data.value.trim(), 'base64').toString('utf-8');
-	const parsedJson = JSON.parse(decodedBuffer);
-
-	return parsedJson.textures.SKIN.url;
+	return decodeSkin(data.value.trim());
 }
 
 app.listen(Number(PORT), '0.0.0.0', () => {
 	console.log(`Server is running on http://localhost:${PORT}`);
 });
+
+function decodeSkin(base64: string): string {
+	const decodedBuffer = Buffer.from(base64, 'base64').toString('utf-8');
+	const parsedJson: DecodedSkinValue = JSON.parse(decodedBuffer);
+
+	return parsedJson.textures.SKIN.url;
+}
+
+async function getOnlineUUID(username: string, format: boolean = true): Promise<string | undefined> {
+	const url = `https://api.minecraftservices.com/minecraft/profile/lookup/name/${encodeURIComponent(username)}`;
+	const response = await fetch(url);
+
+	if (!response.ok || response.status === 204 || response.status === 404) {
+		return;
+	}
+
+	const data = await response.json();
+	if (!data.id || data.id.length !== 32) {
+		return;
+	}
+	
+	return format ? formatUUID(data.id) : data.id;
+}
+
+async function getOfflineUUID(username: string, format: boolean = true) {
+	const digest = crypto.createHash("md5").update(`OfflinePlayer:${username}`, "utf8").digest();
+	const bytes = Buffer.from(digest);
+
+	bytes[6] = (bytes[6] & 0x0f) | 0x30;
+	bytes[8] = (bytes[8] & 0x3f) | 0x80;
+
+	const hex = bytes.toString("hex");
+	return format ? formatUUID(hex) : hex;
+}
+
+async function getOnlineSkinURL(username: string): Promise<string | null | undefined> {
+	const uuid = await getOnlineUUID(username, false);
+	if(!uuid) return null;
+
+	const url = `https://sessionserver.mojang.com/session/minecraft/profile/${encodeURIComponent(username)}`;
+	const response = await fetch(url);
+	if (!response.ok || response.status === 204 || response.status === 404) {
+		return null;
+	}
+	const data: MinecraftProfile = await response.json();
+	const skindata = data.properties[0].value.trim()
+	return decodeSkin(skindata);
+}
