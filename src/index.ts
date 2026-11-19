@@ -1,5 +1,6 @@
 import express from 'express';
-import fs from 'node:fs/promises';
+import fs from 'node:fs'
+import fsP from 'node:fs/promises';
 import path from 'node:path';
 import sharp from 'sharp';
 import crypto from 'crypto';
@@ -95,16 +96,20 @@ app.get('/head/:uuid', async (req, res) => {
 });
 
 async function getPlayerImage(uuid: string): Promise<string | undefined> {
+	return readPlayerImage(uuid) || getOnlineSkinURL(uuid);
+}
+
+async function readPlayerImage(uuid: string): Promise<string | undefined> {
 	try {
 		if (!uuid) return;
 
 		const filePath = path.join(SKINRESTORER_PATH!, "players", `${uuid}.player`);
-		const fileContent = await fs.readFile(filePath, 'utf8');
+		if(!fs.existsSync(filePath)) return;
+		const fileContent = await fsP.readFile(filePath, 'utf8');
 		const data = JSON.parse(fileContent);
 
 		return await getSkinURL(data.skinIdentifier);
 	} catch (err) {
-		console.error(err)
 		return undefined;
 	}
 }
@@ -122,7 +127,7 @@ async function getSkinURL(skinIdentifier: any): Promise<string> {
 	}
 
 	const filePath = path.join(SKINRESTORER_PATH!, "skins", `${skinIdentifier.identifier}.${filetype}`);
-	const fileContent = await fs.readFile(filePath, 'utf8');
+	const fileContent = await fsP.readFile(filePath, 'utf8');
 	const data = JSON.parse(fileContent);
 
 	return decodeSkin(data.value.trim());
